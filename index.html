@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Crop Intelligence System</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4caf50">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CropAI">
+    <link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Noto+Nastaliq+Urdu&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#071007;--surface:#0d1a0d;--surface2:#142014;--border:#1e3a1e;
+  --green:#4caf50;--green-bright:#69f069;--green-dim:#1a3a1a;
+  --text:#e8f5e9;--text-dim:#6a8f6a;--accent:#00e676;--warn:#ffb300;--error:#ff5252;
+}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,#0d3a0d22,transparent 60%),radial-gradient(ellipse at 90% 90%,#0a2a0a22,transparent 60%);pointer-events:none;z-index:0}
+
+/* Header */
+.header{background:linear-gradient(135deg,#0a1a0a,#162816);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100}
+.logo{width:44px;height:44px;background:linear-gradient(135deg,var(--green),#1b5e20);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 0 24px #4caf5044;flex-shrink:0}
+.header-title{font-size:20px;font-weight:700;color:var(--green-bright);letter-spacing:1.5px}
+.header-sub{font-size:11px;color:var(--text-dim);margin-top:2px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.status-pill{display:flex;align-items:center;gap:6px;background:var(--green-dim);border:1px solid var(--border);padding:5px 12px;border-radius:20px;font-size:11px;color:var(--green-bright);font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* API Setup */
+.api-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.api-bar.hidden{display:none}
+.api-bar input{flex:1;min-width:200px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;font-family:monospace;outline:none}
+.api-bar input:focus{border-color:var(--green)}
+.api-bar label{font-size:12px;color:var(--text-dim);white-space:nowrap}
+.btn-save{background:var(--green);color:#000;border:none;border-radius:8px;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Rajdhani',sans-serif;white-space:nowrap}
+.api-active{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--green)}
+.api-active.hidden{display:none}
+.api-active span{flex:1}
+.link-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:11px;text-decoration:underline;font-family:'Rajdhani',sans-serif}
+
+/* Layout */
+.main{display:grid;grid-template-columns:300px 1fr;gap:0;min-height:calc(100vh - 100px);position:relative;z-index:1}
+@media(max-width:768px){.main{grid-template-columns:1fr}}
+
+/* Sidebar */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:20px;overflow-y:auto}
+.sidebar-title{font-size:13px;font-weight:700;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:600;letter-spacing:0.5px}
+.form-control{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:'Rajdhani',sans-serif;outline:none;transition:border-color 0.2s}
+.form-control:focus{border-color:var(--green)}
+select.form-control option{background:var(--surface)}
+.range-row{display:flex;align-items:center;gap:8px}
+.range-val{font-size:13px;color:var(--green-bright);font-weight:700;min-width:45px;text-align:right}
+input[type=range]{-webkit-appearance:none;flex:1;height:4px;background:var(--border);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;background:var(--green);border-radius:50%;cursor:pointer}
+.info-box{background:var(--green-dim);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-dim);margin-top:6px}
+.info-box b{color:var(--green-bright)}
+.btn-run{width:100%;background:linear-gradient(135deg,var(--green),#2e7d32);color:#000;border:none;border-radius:10px;padding:13px;font-size:16px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;margin-top:8px;transition:all 0.2s;box-shadow:0 0 20px #4caf5033}
+.btn-run:hover{box-shadow:0 0 30px #4caf5055;transform:translateY(-1px)}
+.btn-run:active{transform:translateY(0)}
+.btn-run:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* Content */
+.content{padding:20px;overflow-y:auto}
+
+/* Welcome */
+.welcome{text-align:center;padding:60px 20px;max-width:500px;margin:0 auto}
+.welcome-icon{font-size:56px;margin-bottom:16px}
+.welcome h2{font-size:26px;font-weight:700;color:var(--green-bright);margin-bottom:8px}
+.welcome p{color:var(--text-dim);font-size:14px;line-height:1.7}
+.crop-preview{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:24px}
+.crop-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 8px;text-align:center;font-size:11px;color:var(--text-dim)}
+.crop-card .emoji{font-size:24px;display:block;margin-bottom:4px}
+
+/* Metrics */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;position:relative;overflow:hidden}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--green),transparent)}
+.metric-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+.metric-value{font-size:22px;font-weight:700;color:var(--green-bright);line-height:1}
+.metric-sub{font-size:11px;color:var(--text-dim);margin-top:4px}
+.metric-card.warn::before{background:linear-gradient(90deg,var(--warn),transparent)}
+.metric-card.warn .metric-value{color:var(--warn)}
+.metric-card.good::before{background:linear-gradient(90deg,var(--accent),transparent)}
+.metric-card.good .metric-value{color:var(--accent)}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--surface);border-radius:10px;padding:4px;border:1px solid var(--border)}
+.tab{flex:1;padding:9px 6px;border:none;background:transparent;color:var(--text-dim);font-size:12px;font-weight:600;cursor:pointer;border-radius:7px;font-family:'Rajdhani',sans-serif;letter-spacing:0.5px;transition:all 0.2s;white-space:nowrap}
+.tab.active{background:var(--green-dim);color:var(--green-bright);border:1px solid var(--border)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* Charts */
+.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+.chart-title{font-size:13px;font-weight:700;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.chart-container{position:relative;height:220px}
+.chart-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.chart-2col{grid-template-columns:1fr}}
+
+/* Table */
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{background:var(--green-dim);color:var(--green-bright);padding:10px 12px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.data-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+.data-table tr:hover td{background:var(--surface2)}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-green{background:var(--green-dim);color:var(--green-bright);border:1px solid var(--border)}
+.badge-warn{background:#3a2a00;color:var(--warn);border:1px solid #5a4000}
+.badge-red{background:#2a0000;color:var(--error);border:1px solid #5a0000}
+
+/* Nutrient cards */
+.nutrient-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.nutrient-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+.nutrient-symbol{font-size:28px;font-weight:700;color:var(--green-bright);line-height:1}
+.nutrient-name{font-size:11px;color:var(--text-dim);margin:4px 0}
+.nutrient-val{font-size:16px;font-weight:700;color:var(--text)}
+.nutrient-product{font-size:11px;color:var(--text-dim);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+
+/* AI Panel */
+.ai-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.ai-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.ai-icon{font-size:24px}
+.ai-title{font-size:15px;font-weight:700;color:var(--green-bright)}
+.ai-sub{font-size:11px;color:var(--text-dim)}
+.btn-ai{background:linear-gradient(135deg,var(--green),#2e7d32);color:#000;border:none;border-radius:8px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;margin-bottom:12px;width:100%;transition:all 0.2s}
+.btn-ai:hover{opacity:0.9}
+.btn-ai:disabled{opacity:0.5;cursor:not-allowed}
+.btn-ai-outline{background:transparent;color:var(--green);border:1px solid var(--green);border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;width:100%;margin-bottom:8px;transition:all 0.2s}
+.btn-ai-outline:hover{background:var(--green-dim)}
+.ai-response{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;min-height:60px;display:none}
+.ai-response.visible{display:block}
+.ai-typing{color:var(--text-dim);font-style:italic;font-size:12px}
+
+/* Export */
+.btn-export{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Rajdhani',sans-serif;transition:all 0.2s}
+.btn-export:hover{border-color:var(--green);color:var(--green-bright)}
+
+/* Spinner */
+.spinner{display:none;text-align:center;padding:40px;color:var(--text-dim)}
+.spinner.visible{display:block}
+.spin{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Water balance row */
+.wb-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.wb-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.wb-val{font-size:20px;font-weight:700;color:var(--green-bright)}
+.wb-label{font-size:11px;color:var(--text-dim);margin-top:4px}
+
+/* Progress bar */
+.progress-wrap{background:var(--border);border-radius:4px;height:8px;overflow:hidden;margin-top:4px}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--green),var(--accent));border-radius:4px;transition:width 0.8s ease}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">🌾</div>
+  <div>
+    <div class="header-title">CROP INTELLIGENCE SYSTEM</div>
+    <div class="header-sub">FAO AquaCrop Model • AI Agronomic Analysis • Punjab Pakistan</div>
+  </div>
+  <div class="header-right">
+    <div class="status-pill"><div class="dot"></div>LIVE</div>
+  </div>
+</div>
+
+<!-- API Key Bar -->
+<div class="api-bar" id="apiBar">
+  <label>🔑 Free Gemini API Key:</label>
+  <input type="password" id="apiKeyInput" placeholder="Paste your key from aistudio.google.com (AIza...)">
+  <button class="btn-save" onclick="saveApiKey()">Save Key</button>
+</div>
+<div class="api-active hidden" id="apiActive">
+  <span>✅ Gemini AI connected — Free &amp; unlimited</span>
+  <button class="link-btn" onclick="changeApiKey()">Change Key</button>
+</div>
+
+<!-- Main Layout -->
+<div class="main">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-title">Field Configuration</div>
+
+    <div class="form-group">
+      <label class="form-label">Crop</label>
+      <select class="form-control" id="cropSelect" onchange="onCropChange()">
+        <option>Wheat</option>
+        <option>Maize</option>
+        <option>Rice</option>
+        <option>Soybean</option>
+        <option>Cotton</option>
+        <option>Sugarcane</option>
+        <option>Chickpea</option>
+        <option>Potato</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Location — Latitude</label>
+      <input class="form-control" type="number" id="lat" value="31.9236" step="0.0001">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Location — Longitude</label>
+      <input class="form-control" type="number" id="lon" value="73.9786" step="0.0001">
+    </div>
+    <div class="info-box">Default: Sheikhupura, Punjab 📍</div>
+
+    <hr class="divider">
+
+    <div class="form-group">
+      <label class="form-label">Planting Date</label>
+      <input class="form-control" type="date" id="plantDate">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Season Duration: <span id="seasonVal">120</span> days</label>
+      <div class="range-row">
+        <input type="range" id="seasonDays" min="60" max="365" value="120" oninput="document.getElementById('seasonVal').textContent=this.value">
+      </div>
+    </div>
+
+    <hr class="divider">
+    <div class="sidebar-title">Soil Parameters</div>
+
+    <div class="form-group">
+      <label class="form-label">Soil Texture</label>
+      <select class="form-control" id="soilTexture" onchange="onSoilChange()">
+        <option>Sandy</option>
+        <option>Sandy Loam</option>
+        <option selected>Clay Loam</option>
+        <option>Clay</option>
+        <option>Loam</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Field Capacity: <span id="fcVal">42</span>%</label>
+      <div class="range-row">
+        <input type="range" id="fieldCap" min="15" max="55" value="42" oninput="document.getElementById('fcVal').textContent=this.value">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Wilting Point: <span id="wpVal">22</span>%</label>
+      <div class="range-row">
+        <input type="range" id="wiltPoint" min="4" max="30" value="22" oninput="document.getElementById('wpVal').textContent=this.value">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Root Depth: <span id="rdVal">100</span> cm</label>
+      <div class="range-row">
+        <input type="range" id="rootDepth" min="20" max="180" value="100" oninput="document.getElementById('rdVal').textContent=this.value">
+      </div>
+    </div>
+
+    <div class="info-box">AWC: <b id="awcDisplay">200 mm</b></div>
+
+    <hr class="divider">
+    <div class="sidebar-title">Yield Target</div>
+
+    <div class="form-group">
+      <label class="form-label">Target Yield (kg/ha)</label>
+      <input class="form-control" type="number" id="targetYield" value="4000" step="100">
+    </div>
+    <div class="info-box" id="yieldRangeInfo">Typical wheat: 2,000–6,000 kg/ha</div>
+
+    <button class="btn-run" id="runBtn" onclick="runAnalysis()">🚀 Run Full Analysis</button>
+  </div>
+
+  <!-- Content -->
+  <div class="content" id="content">
+
+    <!-- Welcome -->
+    <div class="welcome" id="welcomePanel">
+      <div class="welcome-icon">🌾</div>
+      <h2>Crop Intelligence System</h2>
+      <p>FAO AquaCrop mechanistic model with free AI agronomic analysis.<br>Configure your field parameters and click <b style="color:var(--green-bright)">Run Full Analysis</b>.</p>
+      <div class="crop-preview">
+        <div class="crop-card"><span class="emoji">🌾</span>Wheat</div>
+        <div class="crop-card"><span class="emoji">🌽</span>Maize</div>
+        <div class="crop-card"><span class="emoji">🌾</span>Rice</div>
+        <div class="crop-card"><span class="emoji">🫘</span>Soybean</div>
+        <div class="crop-card"><span class="emoji">🌿</span>Cotton</div>
+        <div class="crop-card"><span class="emoji">🎋</span>Sugarcane</div>
+        <div class="crop-card"><span class="emoji">🫘</span>Chickpea</div>
+        <div class="crop-card"><span class="emoji">🥔</span>Potato</div>
+      </div>
+    </div>
+
+    <!-- Spinner -->
+    <div class="spinner" id="spinner">
+      <div class="spin"></div>
+      <div id="spinnerMsg">Fetching weather data from satellite...</div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsPanel" style="display:none">
+
+      <!-- Metrics -->
+      <div class="metrics-grid" id="metricsGrid"></div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('weather',this)">🌦 Weather</button>
+        <button class="tab" onclick="showTab('scenarios',this)">📈 Scenarios</button>
+        <button class="tab" onclick="showTab('nutrients',this)">💊 Nutrients</button>
+        <button class="tab" onclick="showTab('ai',this)">🤖 AI Analysis</button>
+      </div>
+
+      <!-- Weather Tab -->
+      <div class="tab-panel active" id="tab-weather">
+        <div class="chart-box">
+          <div class="chart-title">Rainfall vs Crop Water Demand (ETc)</div>
+          <div class="chart-container"><canvas id="weatherChart"></canvas></div>
+        </div>
+        <div class="chart-2col">
+          <div class="chart-box">
+            <div class="chart-title">Temperature Profile</div>
+            <div class="chart-container"><canvas id="tempChart"></canvas></div>
+          </div>
+          <div class="chart-box">
+            <div class="chart-title">Daily Water Stress</div>
+            <div class="chart-container"><canvas id="stressChart"></canvas></div>
+          </div>
+        </div>
+        <div class="wb-row" id="wbRow"></div>
+      </div>
+
+      <!-- Scenarios Tab -->
+      <div class="tab-panel" id="tab-scenarios">
+        <div class="chart-box">
+          <div class="chart-title">Yield vs Irrigation — Scenario Analysis</div>
+          <div class="chart-container"><canvas id="scenarioChart"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Scenario Comparison Table</div>
+          <table class="data-table" id="scenarioTable"></table>
+        </div>
+      </div>
+
+      <!-- Nutrients Tab -->
+      <div class="tab-panel" id="tab-nutrients">
+        <div class="nutrient-grid" id="nutrientGrid"></div>
+        <div class="chart-box">
+          <div class="chart-title">Fertilizer Product Equivalents</div>
+          <table class="data-table" id="fertTable"></table>
+        </div>
+        <div class="info-box" style="margin-top:12px">
+          ⚠️ Split N application: <b>Basal (30%)</b> at planting + <b>Tillering (40%)</b> + <b>Panicle initiation (30%)</b> for best efficiency.
+        </div>
+      </div>
+
+      <!-- AI Tab -->
+      <div class="tab-panel" id="tab-ai">
+        <div class="ai-box">
+          <div class="ai-header">
+            <div class="ai-icon">🤖</div>
+            <div>
+              <div class="ai-title">AI Agronomic Analysis</div>
+              <div class="ai-sub">Powered by Google Gemini — Free</div>
+            </div>
+          </div>
+          <button class="btn-ai" id="btnFullReport" onclick="generateAIReport()">Generate Full Agronomic Report</button>
+          <div class="ai-response" id="aiFullResponse"></div>
+        </div>
+        <div class="ai-box">
+          <div class="ai-header">
+            <div class="ai-icon">🔬</div>
+            <div>
+              <div class="ai-title">Yield Gap Diagnosis</div>
+              <div class="ai-sub">Why is yield below potential?</div>
+            </div>
+          </div>
+          <button class="btn-ai-outline" id="btnDiagnose" onclick="diagnoseYieldGap()">Diagnose Yield Gap</button>
+          <div class="ai-response" id="aiDiagnoseResponse"></div>
+        </div>
+        <div class="ai-box">
+          <div class="ai-header">
+            <div class="ai-icon">💬</div>
+            <div>
+              <div class="ai-title">Ask the Agronomist</div>
+              <div class="ai-sub">Ask anything about your crop</div>
+            </div>
+          </div>
+          <input class="form-control" id="askInput" placeholder="e.g. When should I apply nitrogen? What if rainfall doubles?" style="margin-bottom:10px">
+          <button class="btn-ai-outline" onclick="askAgronomist()">Get Answer</button>
+          <div class="ai-response" id="aiAskResponse" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- Export -->
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-export" onclick="exportCSV()">⬇ Download Report CSV</button>
+        <button class="btn-export" onclick="window.print()">🖨 Print Report</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// CROP LIBRARY
+// ═══════════════════════════════════════════
+const CROPS = {
+  Wheat:{Tbase:0,Tupper:26,GDD_emergence:150,GDD_heading:1200,GDD_maturity:2000,Kcini:0.3,Kcmid:1.15,Kcend:0.4,WP:15,HI:0.45,Ky:1.0,N:25,P:4,K:6,range:"2000–6000",days:120},
+  Maize:{Tbase:10,Tupper:34,GDD_emergence:60,GDD_heading:800,GDD_maturity:1400,Kcini:0.3,Kcmid:1.20,Kcend:0.35,WP:18,HI:0.50,Ky:1.25,N:22,P:4,K:8,range:"3000–10000",days:110},
+  Rice:{Tbase:8,Tupper:35,GDD_emergence:100,GDD_heading:900,GDD_maturity:1500,Kcini:1.05,Kcmid:1.20,Kcend:0.90,WP:10,HI:0.50,Ky:1.15,N:18,P:3,K:20,range:"2000–8000",days:130},
+  Soybean:{Tbase:6,Tupper:30,GDD_emergence:80,GDD_heading:700,GDD_maturity:1300,Kcini:0.40,Kcmid:1.15,Kcend:0.50,WP:16,HI:0.42,Ky:0.85,N:60,P:7,K:20,range:"1500–5000",days:100},
+  Cotton:{Tbase:12,Tupper:38,GDD_emergence:50,GDD_heading:700,GDD_maturity:1600,Kcini:0.35,Kcmid:1.15,Kcend:0.50,WP:12,HI:0.35,Ky:0.85,N:55,P:9,K:15,range:"1000–4000",days:160},
+  Sugarcane:{Tbase:9,Tupper:34,GDD_emergence:200,GDD_heading:2000,GDD_maturity:4000,Kcini:0.40,Kcmid:1.25,Kcend:0.75,WP:14,HI:0.75,Ky:1.2,N:1.5,P:0.4,K:2.0,range:"40000–100000",days:365},
+  Chickpea:{Tbase:0,Tupper:28,GDD_emergence:100,GDD_heading:700,GDD_maturity:1200,Kcini:0.40,Kcmid:1.00,Kcend:0.35,WP:13,HI:0.40,Ky:0.80,N:45,P:8,K:12,range:"800–3000",days:100},
+  Potato:{Tbase:2,Tupper:29,GDD_emergence:100,GDD_heading:600,GDD_maturity:1100,Kcini:0.50,Kcmid:1.15,Kcend:0.75,WP:19,HI:0.75,Ky:1.10,N:4.0,P:0.7,K:6.0,range:"15000–45000",days:90}
+};
+
+const SOIL_DEFAULTS = {
+  "Sandy":[18,6,60],"Sandy Loam":[28,12,80],"Clay Loam":[42,22,100],"Clay":[50,28,80],"Loam":[35,18,90]
+};
+
+// ═══════════════════════════════════════════
+// API KEY
+// ═══════════════════════════════════════════
+let apiKey = localStorage.getItem('cis_gemini_key') || '';
+let analysisData = {};
+
+window.onload = function() {
+  if (apiKey) showApiActive();
+  setDefaultDate();
+  onCropChange();
+  updateAWC();
+};
+
+function saveApiKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (!k.startsWith('AIza')) { alert('Invalid key. Gemini keys start with AIza...'); return; }
+  apiKey = k;
+  localStorage.setItem('cis_gemini_key', k);
+  showApiActive();
+}
+
+function showApiActive() {
+  document.getElementById('apiBar').classList.add('hidden');
+  document.getElementById('apiActive').classList.remove('hidden');
+}
+
+function changeApiKey() {
+  apiKey = '';
+  localStorage.removeItem('cis_gemini_key');
+  document.getElementById('apiBar').classList.remove('hidden');
+  document.getElementById('apiActive').classList.add('hidden');
+}
+
+function setDefaultDate() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  document.getElementById('plantDate').value = d.toISOString().split('T')[0];
+}
+
+function onCropChange() {
+  const crop = CROPS[document.getElementById('cropSelect').value];
+  document.getElementById('seasonDays').value = crop.days;
+  document.getElementById('seasonVal').textContent = crop.days;
+  document.getElementById('targetYield').value = Math.round((parseInt(crop.range)+parseInt(crop.range.split('–')[1]))/2);
+  document.getElementById('yieldRangeInfo').innerHTML = `Typical ${document.getElementById('cropSelect').value}: ${crop.range} kg/ha`;
+}
+
+function onSoilChange() {
+  const d = SOIL_DEFAULTS[document.getElementById('soilTexture').value];
+  document.getElementById('fieldCap').value = d[0];
+  document.getElementById('fcVal').textContent = d[0];
+  document.getElementById('wiltPoint').value = d[1];
+  document.getElementById('wpVal').textContent = d[1];
+  document.getElementById('rootDepth').value = d[2];
+  document.getElementById('rdVal').textContent = d[2];
+  updateAWC();
+}
+
+function updateAWC() {
+  const fc = parseInt(document.getElementById('fieldCap').value);
+  const wp = parseInt(document.getElementById('wiltPoint').value);
+  const rd = parseInt(document.getElementById('rootDepth').value);
+  const awc = (fc - wp) / 100 * rd * 10;
+  document.getElementById('awcDisplay').textContent = awc.toFixed(0) + ' mm';
+}
+
+document.addEventListener('input', function(e) {
+  if (['fieldCap','wiltPoint','rootDepth'].includes(e.target.id)) updateAWC();
+});
+
+// ═══════════════════════════════════════════
+// AQUACROP MODEL
+// ═══════════════════════════════════════════
+function calcGDD(tmax, tmin, Tbase, Tupper) {
+  return tmax.map((mx,i) => {
+    const adj_mx = Math.min(mx, Tupper);
+    const adj_mn = Math.max(tmin[i], Tbase);
+    return Math.max(0, (adj_mx + adj_mn) / 2 - Tbase);
+  }).reduce((acc,v,i) => { acc.push((acc[i-1]||0)+v); return acc; }, []);
+}
+
+function assignStages(gdd, crop) {
+  return gdd.map(g => {
+    if (g < crop.GDD_emergence) return 'initial';
+    if (g < crop.GDD_heading * 0.5) return 'development';
+    if (g < crop.GDD_heading) return 'mid';
+    if (g < crop.GDD_maturity) return 'late';
+    return 'mature';
+  });
+}
+
+function getKc(stages, crop) {
+  return stages.map(s => ({
+    initial: crop.Kcini,
+    development: (crop.Kcini + crop.Kcmid) / 2,
+    mid: crop.Kcmid,
+    late: (crop.Kcmid + crop.Kcend) / 2,
+    mature: crop.Kcend
+  }[s] || 1.0));
+}
+
+function waterBalance(rain, irr, ETc, AWC) {
+  let SWC = AWC * 0.5;
+  return ETc.map((etc, i) => {
+    SWC = Math.min(SWC + rain[i] + (irr[i]||0) - etc, AWC);
+    SWC = Math.max(SWC, 0);
+    const thr = 0.55 * AWC;
+    return SWC >= thr ? 0 : 1 - SWC / thr;
+  });
+}
+
+function predictYield(weather, irr, soil, crop) {
+  const GDD = calcGDD(weather.tmax, weather.tmin, crop.Tbase, crop.Tupper);
+  const stages = assignStages(GDD, crop);
+  const Kc = getKc(stages, crop);
+  const ETc = weather.ETo.map((e,i) => e * Kc[i]);
+  const stress = waterBalance(weather.rain, irr, ETc, soil.AWC);
+  const meanStress = stress.reduce((a,b)=>a+b,0) / stress.length;
+  const ETa_ratio = Math.max(0, Math.min(1, 1 - meanStress));
+  const penalty = Math.max(0, 1 - crop.Ky * (1 - ETa_ratio));
+  const totalETc = ETc.reduce((a,b)=>a+b,0);
+  const potential = crop.WP * totalETc * crop.HI;
+  const actual = potential * penalty;
+  return {
+    potential: Math.round(Math.max(potential,0)),
+    actual: Math.round(Math.max(actual,0)),
+    gapPct: Math.round((1-penalty)*100),
+    stressIndex: +meanStress.toFixed(3),
+    ETc_total: Math.round(totalETc),
+    ETa_ratio: +ETa_ratio.toFixed(3),
+    GDD, stages, ETc, stress
+  };
+}
+
+function distributeIrr(total, n) {
+  const arr = new Array(n).fill(0);
+  const e1 = Math.floor(n*0.3), e2 = Math.floor(n*0.8);
+  if (e1>0) for(let i=0;i<e1;i++) arr[i] = 0.20*total/e1;
+  if(e2-e1>0) for(let i=e1;i<e2;i++) arr[i] = 0.55*total/(e2-e1);
+  if(n-e2>0) for(let i=e2;i<n;i++) arr[i] = 0.25*total/(n-e2);
+  return arr;
+}
+
+function solveForTarget(target, weather, soil, crop) {
+  let bestIrr=0, bestGap=Infinity, bestResult=null;
+  for (let t=0; t<=1000; t+=10) {
+    const irr = distributeIrr(t, weather.tmax.length);
+    const r = predictYield(weather, irr, soil, crop);
+    const gap = Math.abs(r.actual - target);
+    if (gap < bestGap) { bestGap=gap; bestIrr=t; bestResult=r; }
+  }
+  for (let t=Math.max(0,bestIrr-10); t<=Math.min(1000,bestIrr+10); t++) {
+    const irr = distributeIrr(t, weather.tmax.length);
+    const r = predictYield(weather, irr, soil, crop);
+    const gap = Math.abs(r.actual - target);
+    if (gap < bestGap) { bestGap=gap; bestIrr=t; bestResult=r; }
+  }
+  const feasibility = bestGap < target*0.07 ? '✅ Achievable' : bestGap < target*0.20 ? '⚠️ Challenging' : '❌ Needs more than irrigation';
+  return { irr: bestIrr, result: bestResult, feasibility };
+}
+
+function calcNutrients(target, crop) {
+  const t = target / 1000;
+  return {
+    N: +(crop.N * t).toFixed(1),
+    P: +(crop.P * t).toFixed(1),
+    K: +(crop.K * t).toFixed(1),
+    Urea: +((crop.N * t) / 0.46).toFixed(1),
+    DAP: +((crop.P * t) / 0.18).toFixed(1),
+    MOP: +((crop.K * t) / 0.60).toFixed(1)
+  };
+}
+
+// ═══════════════════════════════════════════
+// WEATHER API
+// ═══════════════════════════════════════════
+async function fetchWeather(lat, lon, startDate, endDate) {
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&timezone=auto`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Weather API failed');
+  const d = await r.json();
+  return {
+    dates: d.daily.time,
+    tmax: d.daily.temperature_2m_max.map(v => v||0),
+    tmin: d.daily.temperature_2m_min.map(v => v||0),
+    rain: d.daily.precipitation_sum.map(v => v||0),
+    ETo: d.daily.et0_fao_evapotranspiration.map(v => v||0)
+  };
+}
+
+// ═══════════════════════════════════════════
+// GEMINI AI
+// ═══════════════════════════════════════════
+async function callGemini(prompt) {
+  if (!apiKey) return 'Please add your free Gemini API key at the top of the page.';
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      contents:[{role:'user',parts:[{text:prompt}]}],
+      generationConfig:{temperature:0.7,maxOutputTokens:1500}
+    })
+  });
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message);
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
+}
+
+async function generateAIReport() {
+  const btn = document.getElementById('btnFullReport');
+  const box = document.getElementById('aiFullResponse');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  box.className = 'ai-response visible ai-typing';
+  box.textContent = '🤖 Analyzing your crop scenario...';
+
+  const ad = analysisData;
+  const prompt = `You are a senior agronomist with 25 years of field experience in Pakistan.
+
+CROP ANALYSIS DATA:
+Crop: ${ad.cropName} | Location: Lat ${ad.lat}, Lon ${ad.lon} | Planting: ${ad.plantDate}
+Soil: ${ad.soilTexture}, Field Capacity ${ad.fc}%, Wilting Point ${ad.wp}%, Root Depth ${ad.rd}cm, AWC ${ad.soil.AWC.toFixed(0)}mm
+
+YIELD MODEL RESULTS:
+- Potential Yield (weather-limited): ${ad.rainfed.potential} kg/ha
+- Rainfed Predicted Yield: ${ad.rainfed.actual} kg/ha
+- Yield Gap: ${ad.rainfed.gapPct}%
+- Water Stress Index: ${ad.rainfed.stressIndex} (0=none, 1=severe)
+- Total Crop Water Demand ETc: ${ad.rainfed.ETc_total} mm
+- Total Seasonal Rainfall: ${ad.weather.rain.reduce((a,b)=>a+b,0).toFixed(0)} mm
+
+YIELD TARGET:
+- Target: ${ad.targetYield} kg/ha
+- Required Irrigation: ${ad.targetSolve.irr} mm
+- Feasibility: ${ad.targetSolve.feasibility}
+- Achievable Yield: ${ad.targetSolve.result.actual} kg/ha
+
+NUTRIENT REQUIREMENTS:
+- N: ${ad.nutrients.N} kg/ha (Urea: ${ad.nutrients.Urea} kg/ha)
+- P: ${ad.nutrients.P} kg/ha (DAP: ${ad.nutrients.DAP} kg/ha)
+- K: ${ad.nutrients.K} kg/ha (MOP: ${ad.nutrients.MOP} kg/ha)
+
+Provide a structured agronomic report:
+1. TOP 3 YIELD LIMITING FACTORS — explain the mechanism, not just the label
+2. IRRIGATION STRATEGY — specific schedule with growth stage timing
+3. NUTRIENT MANAGEMENT — split application plan for N, P, K
+4. RISK FLAGS — what could cause actual yield to fall below predicted, ranked by probability
+5. PRIORITY ACTION — single most important thing to do this week
+6. CONFIDENCE LEVEL — High/Moderate/Low with reasoning
+
+Be precise, practical, and specific to Punjab Pakistan conditions. No generic advice.`;
+
+  try {
+    const reply = await callGemini(prompt);
+    box.className = 'ai-response visible';
+    box.textContent = reply;
+  } catch(e) {
+    box.className = 'ai-response visible';
+    box.textContent = '⚠️ Error: ' + e.message;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Generate Full Agronomic Report';
+}
+
+async function diagnoseYieldGap() {
+  const btn = document.getElementById('btnDiagnose');
+  const box = document.getElementById('aiDiagnoseResponse');
+  btn.disabled = true;
+  const ad = analysisData;
+  box.className = 'ai-response visible ai-typing';
+  box.textContent = '🔬 Diagnosing yield gap...';
+
+  const prompt = `Diagnose this crop yield gap precisely for Punjab Pakistan conditions.
+
+Crop: ${ad.cropName}
+Potential yield: ${ad.rainfed.potential} kg/ha
+Predicted actual yield: ${ad.rainfed.actual} kg/ha
+Yield gap: ${ad.rainfed.gapPct}%
+Water stress index: ${ad.rainfed.stressIndex}
+Total rainfall: ${ad.weather.rain.reduce((a,b)=>a+b,0).toFixed(0)} mm
+Total ETc demand: ${ad.rainfed.ETc_total} mm
+
+Answer:
+1. Primary cause of yield gap with exact physiological mechanism
+2. Is this water-driven, nutrient-driven, or management-driven?
+3. What % of this gap is recoverable with better irrigation?
+4. One specific corrective action with expected yield recovery in kg/ha`;
+
+  try {
+    const reply = await callGemini(prompt);
+    box.className = 'ai-response visible';
+    box.textContent = reply;
+  } catch(e) {
+    box.className = 'ai-response visible';
+    box.textContent = '⚠️ Error: ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+async function askAgronomist() {
+  const q = document.getElementById('askInput').value.trim();
+  if (!q) return;
+  const box = document.getElementById('aiAskResponse');
+  box.className = 'ai-response visible ai-typing';
+  box.textContent = '💬 Thinking...';
+  const ad = analysisData;
+  const prompt = `You are an expert agronomist. Current crop situation:
+Crop: ${ad.cropName}, Location: Punjab Pakistan
+Predicted yield: ${ad.rainfed.actual} kg/ha, Target: ${ad.targetYield} kg/ha
+Water stress: ${ad.rainfed.stressIndex}, Required irrigation: ${ad.targetSolve.irr} mm
+
+Farmer's question: ${q}
+
+Answer directly and practically in max 150 words. Be specific to this situation.`;
+
+  try {
+    const reply = await callGemini(prompt);
+    box.className = 'ai-response visible';
+    box.textContent = reply;
+  } catch(e) {
+    box.className = 'ai-response visible';
+    box.textContent = '⚠️ Error: ' + e.message;
+  }
+}
+
+// ═══════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════
+let charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function buildWeatherChart(weather, ETc) {
+  destroyChart('weather');
+  const labels = weather.dates.map((d,i) => i % Math.max(1,Math.floor(weather.dates.length/10)) === 0 ? d.slice(5) : '');
+  charts.weather = new Chart(document.getElementById('weatherChart'), {
+    data: {
+      labels: weather.dates.map(d=>d.slice(5)),
+      datasets: [
+        {type:'bar',label:'Rainfall (mm)',data:weather.rain,backgroundColor:'#1565c088',yAxisID:'y'},
+        {type:'line',label:'ETo (mm)',data:weather.ETo,borderColor:'#ffb300',borderWidth:2,pointRadius:0,yAxisID:'y'},
+        {type:'line',label:'ETc (mm)',data:ETc,borderColor:'#4caf50',borderWidth:2,pointRadius:0,borderDash:[4,2],yAxisID:'y'}
+      ]
+    },
+    options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8f6a',font:{size:11}}}},scales:{x:{ticks:{color:'#6a8f6a',maxTicksLimit:8},grid:{color:'#1e3a1e'}},y:{ticks:{color:'#6a8f6a'},grid:{color:'#1e3a1e'}}}}
+  });
+}
+
+function buildTempChart(weather, cropTupper, cropTbase) {
+  destroyChart('temp');
+  charts.temp = new Chart(document.getElementById('tempChart'), {
+    type:'line',
+    data:{labels:weather.dates.map(d=>d.slice(5)),datasets:[
+      {label:'Max °C',data:weather.tmax,borderColor:'#ef5350',borderWidth:1.5,pointRadius:0},
+      {label:'Min °C',data:weather.tmin,borderColor:'#42a5f5',borderWidth:1.5,pointRadius:0}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8f6a',font:{size:10}}}},scales:{x:{ticks:{color:'#6a8f6a',maxTicksLimit:6},grid:{color:'#1e3a1e'}},y:{ticks:{color:'#6a8f6a'},grid:{color:'#1e3a1e'}}}}
+  });
+}
+
+function buildStressChart(weather, stress) {
+  destroyChart('stress');
+  charts.stress = new Chart(document.getElementById('stressChart'), {
+    type:'line',
+    data:{labels:weather.dates.map(d=>d.slice(5)),datasets:[{label:'Stress',data:stress,fill:true,backgroundColor:'#ff525233',borderColor:'#ff5252',borderWidth:1.5,pointRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6a8f6a',maxTicksLimit:6},grid:{color:'#1e3a1e'}},y:{min:0,max:1,ticks:{color:'#6a8f6a'},grid:{color:'#1e3a1e'}}}}
+  });
+}
+
+function buildScenarioChart(scenarios, target, potential) {
+  destroyChart('scenario');
+  charts.scenario = new Chart(document.getElementById('scenarioChart'), {
+    type:'line',
+    data:{labels:scenarios.map(s=>s.irr+' mm'),datasets:[{label:'Predicted Yield (kg/ha)',data:scenarios.map(s=>s.yield),borderColor:'#4caf50',backgroundColor:'#4caf5022',fill:true,borderWidth:3,pointRadius:5,pointBackgroundColor:'#4caf50'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6a8f6a'}},annotation:{annotations:{target:{type:'line',yMin:target,yMax:target,borderColor:'#ffb300',borderDash:[6,3],label:{display:true,content:'Target',color:'#ffb300',font:{size:10}}},potential:{type:'line',yMin:potential,yMax:potential,borderColor:'#00e676',borderDash:[4,2]}}}},scales:{x:{ticks:{color:'#6a8f6a'},grid:{color:'#1e3a1e'}},y:{ticks:{color:'#6a8f6a'},grid:{color:'#1e3a1e'}}}}
+  });
+}
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ═══════════════════════════════════════════
+// MAIN ANALYSIS
+// ═══════════════════════════════════════════
+async function runAnalysis() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  document.getElementById('welcomePanel').style.display = 'none';
+  document.getElementById('resultsPanel').style.display = 'none';
+  document.getElementById('spinner').classList.add('visible');
+
+  try {
+    const cropName = document.getElementById('cropSelect').value;
+    const crop = CROPS[cropName];
+    const lat = parseFloat(document.getElementById('lat').value);
+    const lon = parseFloat(document.getElementById('lon').value);
+    const plantDate = document.getElementById('plantDate').value;
+    const seasonDays = parseInt(document.getElementById('seasonDays').value);
+    const fc = parseInt(document.getElementById('fieldCap').value);
+    const wp = parseInt(document.getElementById('wiltPoint').value);
+    const rd = parseInt(document.getElementById('rootDepth').value);
+    const soilTexture = document.getElementById('soilTexture').value;
+    const targetYield = parseInt(document.getElementById('targetYield').value);
+
+    const endDate = new Date(plantDate);
+    endDate.setDate(endDate.getDate() + seasonDays);
+    const endStr = endDate.toISOString().split('T')[0];
+
+    const AWC = (fc - wp) / 100 * rd * 10;
+    const soil = { AWC, fc, wp, rd };
+
+    const weather = await fetchWeather(lat, lon, plantDate, endStr);
+    document.getElementById('spinnerMsg').textContent = 'Running crop model...';
+
+    const rainfedIrr = new Array(weather.tmax.length).fill(0);
+    const rainfed = predictYield(weather, rainfedIrr, soil, crop);
+    const targetSolve = solveForTarget(targetYield, weather, soil, crop);
+    const nutrients = calcNutrients(targetYield, crop);
+
+    // Scenarios
+    const scenarios = [0,100,200,300,400,500,600].map(irr => {
+      const r = predictYield(weather, distributeIrr(irr, weather.tmax.length), soil, crop);
+      return { irr, yield: r.actual, stress: r.stressIndex, gap: r.gapPct };
+    });
+
+    // Save for AI
+    analysisData = { cropName, crop, lat, lon, plantDate, soilTexture, fc, wp, rd, soil, targetYield, weather, rainfed, targetSolve, nutrients, scenarios };
+
+    // ── Render Results ──
+    // Metrics
+    const feasColor = targetSolve.feasibility.startsWith('✅') ? 'good' : targetSolve.feasibility.startsWith('⚠️') ? 'warn' : '';
+    document.getElementById('metricsGrid').innerHTML = `
+      <div class="metric-card"><div class="metric-label">Potential Yield</div><div class="metric-value">${rainfed.potential.toLocaleString()}</div><div class="metric-sub">kg/ha (weather-limited)</div></div>
+      <div class="metric-card warn"><div class="metric-label">Rainfed Yield</div><div class="metric-value">${rainfed.actual.toLocaleString()}</div><div class="metric-sub">−${rainfed.gapPct}% yield gap</div></div>
+      <div class="metric-card"><div class="metric-label">Your Target</div><div class="metric-value">${targetYield.toLocaleString()}</div><div class="metric-sub">kg/ha</div></div>
+      <div class="metric-card ${feasColor}"><div class="metric-label">Required Irrigation</div><div class="metric-value">${targetSolve.irr}</div><div class="metric-sub">mm — ${targetSolve.feasibility}</div></div>
+      <div class="metric-card"><div class="metric-label">Water Stress</div><div class="metric-value">${(rainfed.stressIndex*100).toFixed(0)}%</div><div class="metric-sub">Stress index ${rainfed.stressIndex}</div><div class="progress-wrap"><div class="progress-bar" style="width:${rainfed.stressIndex*100}%;background:${rainfed.stressIndex>0.5?'var(--error)':rainfed.stressIndex>0.25?'var(--warn)':'var(--green)'}"></div></div></div>
+      <div class="metric-card"><div class="metric-label">ETc Demand</div><div class="metric-value">${rainfed.ETc_total}</div><div class="metric-sub">mm total season</div></div>
+    `;
+
+    // Water balance row
+    const totalRain = weather.rain.reduce((a,b)=>a+b,0);
+    document.getElementById('wbRow').innerHTML = `
+      <div class="wb-card"><div class="wb-val">${rainfed.ETc_total} mm</div><div class="wb-label">Crop Water Demand (ETc)</div></div>
+      <div class="wb-card"><div class="wb-val">${totalRain.toFixed(0)} mm</div><div class="wb-label">Seasonal Rainfall</div></div>
+      <div class="wb-card"><div class="wb-val">${Math.max(0,rainfed.ETc_total-totalRain).toFixed(0)} mm</div><div class="wb-label">Irrigation Deficit</div></div>
+    `;
+
+    // Nutrients
+    document.getElementById('nutrientGrid').innerHTML = `
+      <div class="nutrient-card"><div class="nutrient-symbol">N</div><div class="nutrient-name">Nitrogen</div><div class="nutrient-val">${nutrients.N} kg/ha</div><div class="nutrient-product">Urea: ${nutrients.Urea} kg/ha</div></div>
+      <div class="nutrient-card"><div class="nutrient-symbol">P</div><div class="nutrient-name">Phosphorus</div><div class="nutrient-val">${nutrients.P} kg/ha</div><div class="nutrient-product">DAP: ${nutrients.DAP} kg/ha</div></div>
+      <div class="nutrient-card"><div class="nutrient-symbol">K</div><div class="nutrient-name">Potassium</div><div class="nutrient-val">${nutrients.K} kg/ha</div><div class="nutrient-product">MOP: ${nutrients.MOP} kg/ha</div></div>
+    `;
+
+    document.getElementById('fertTable').innerHTML = `
+      <thead><tr><th>Nutrient</th><th>Element (kg/ha)</th><th>Product</th><th>Product (kg/ha)</th></tr></thead>
+      <tbody>
+        <tr><td>Nitrogen</td><td>${nutrients.N}</td><td>Urea (46% N)</td><td>${nutrients.Urea}</td></tr>
+        <tr><td>Phosphorus</td><td>${nutrients.P}</td><td>DAP (18% P)</td><td>${nutrients.DAP}</td></tr>
+        <tr><td>Potassium</td><td>${nutrients.K}</td><td>MOP (60% K)</td><td>${nutrients.MOP}</td></tr>
+      </tbody>`;
+
+    // Scenario Table
+    document.getElementById('scenarioTable').innerHTML = `
+      <thead><tr><th>Irrigation (mm)</th><th>Predicted Yield (kg/ha)</th><th>Stress Index</th><th>Yield Gap</th><th>vs Target</th></tr></thead>
+      <tbody>${scenarios.map(s=>{
+        const diff = s.yield - targetYield;
+        const badge = diff >= 0 ? 'badge-green' : Math.abs(diff) < targetYield*0.1 ? 'badge-warn' : 'badge-red';
+        return `<tr><td>${s.irr}</td><td>${s.yield.toLocaleString()}</td><td>${s.stress.toFixed(3)}</td><td>${s.gap.toFixed(1)}%</td><td><span class="badge ${badge}">${diff>=0?'+':''}${diff.toLocaleString()}</span></td></tr>`;
+      }).join('')}</tbody>`;
+
+    // Charts
+    buildWeatherChart(weather, rainfed.ETc);
+    buildTempChart(weather, crop.Tupper, crop.Tbase);
+    buildStressChart(weather, rainfed.stress);
+    buildScenarioChart(scenarios, targetYield, rainfed.potential);
+
+    // Reset AI boxes
+    ['aiFullResponse','aiDiagnoseResponse','aiAskResponse'].forEach(id => {
+      document.getElementById(id).className = 'ai-response';
+      document.getElementById(id).textContent = '';
+    });
+
+    document.getElementById('spinner').classList.remove('visible');
+    document.getElementById('resultsPanel').style.display = 'block';
+
+  } catch(e) {
+    document.getElementById('spinner').classList.remove('visible');
+    document.getElementById('welcomePanel').style.display = 'block';
+    alert('Error: ' + e.message + '\n\nMake sure you have internet connection and valid coordinates.');
+  }
+
+  btn.disabled = false;
+}
+
+// ═══════════════════════════════════════════
+// EXPORT CSV
+// ═══════════════════════════════════════════
+function exportCSV() {
+  const ad = analysisData;
+  if (!ad.cropName) return;
+  const rows = [
+    ['Parameter','Value'],
+    ['Crop', ad.cropName],
+    ['Location', `${ad.lat}, ${ad.lon}`],
+    ['Planting Date', ad.plantDate],
+    ['Soil Texture', ad.soilTexture],
+    ['Field Capacity (%)', ad.fc],
+    ['Wilting Point (%)', ad.wp],
+    ['Root Depth (cm)', ad.rd],
+    ['AWC (mm)', ad.soil.AWC.toFixed(1)],
+    ['Potential Yield (kg/ha)', ad.rainfed.potential],
+    ['Rainfed Yield (kg/ha)', ad.rainfed.actual],
+    ['Yield Gap (%)', ad.rainfed.gapPct],
+    ['Water Stress Index', ad.rainfed.stressIndex],
+    ['Total ETc (mm)', ad.rainfed.ETc_total],
+    ['Target Yield (kg/ha)', ad.targetYield],
+    ['Required Irrigation (mm)', ad.targetSolve.irr],
+    ['Feasibility', ad.targetSolve.feasibility],
+    ['N Required (kg/ha)', ad.nutrients.N],
+    ['P Required (kg/ha)', ad.nutrients.P],
+    ['K Required (kg/ha)', ad.nutrients.K],
+    ['Urea Required (kg/ha)', ad.nutrients.Urea],
+    ['DAP Required (kg/ha)', ad.nutrients.DAP],
+    ['MOP Required (kg/ha)', ad.nutrients.MOP],
+    ['Total Rainfall (mm)', ad.weather.rain.reduce((a,b)=>a+b,0).toFixed(1)]
+  ];
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `crop_report_${ad.cropName}_${ad.plantDate}.csv`;
+  a.click();
+}
+</script>
+<script>if("serviceWorker"in navigator){navigator.serviceWorker.register("sw.js").then(()=>console.log("SW ready")).catch(console.error)}</script>
+</body>
+</html>
