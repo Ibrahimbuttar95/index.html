@@ -600,17 +600,84 @@ function calcNutrients(target, crop) {
 // WEATHER API
 // ═══════════════════════════════════════════
 async function fetchWeather(lat, lon, startDate, endDate) {
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&timezone=auto`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('Weather API failed');
-  const d = await r.json();
-  return {
-    dates: d.daily.time,
-    tmax: d.daily.temperature_2m_max.map(v => v||0),
-    tmin: d.daily.temperature_2m_min.map(v => v||0),
-    rain: d.daily.precipitation_sum.map(v => v||0),
-    ETo: d.daily.et0_fao_evapotranspiration.map(v => v||0)
-  };
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  // Archive API needs end date at least 5 days ago
+  const archiveCutoff = new Date(today);
+  archiveCutoff.setDate(archiveCutoff.getDate() - 5);
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  let dates=[], tmax=[], tmin=[], rain=[], ETo=[];
+
+  // ── PAST DATA from archive API ──
+  if (start <= archiveCutoff) {
+    const archiveEnd = end < archiveCutoff ? end : archiveCutoff;
+    const archiveEndStr = archiveEnd.toISOString().split('T')[0];
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startDate}&end_date=${archiveEndStr}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&timezone=auto`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Archive weather API failed. Check coordinates.');
+    const d = await r.json();
+    if (d.error) throw new Error(d.reason || 'Archive API error');
+    dates = [...d.daily.time];
+    tmax  = [...d.daily.temperature_2m_max.map(v=>v||0)];
+    tmin  = [...d.daily.temperature_2m_min.map(v=>v||0)];
+    rain  = [...d.daily.precipitation_sum.map(v=>v||0)];
+    ETo   = [...d.daily.et0_fao_evapotranspiration.map(v=>v||0)];
+  }
+
+  // ── FUTURE DATA from forecast API ──
+  if (end > archiveCutoff) {
+    const forecastStart = start > archiveCutoff ? start : new Date(archiveCutoff.getTime() + 86400000);
+    const forecastStartStr = forecastStart.toISOString().split('T')[0];
+    // Forecast API supports up to 16 days ahead
+    const maxForecast = new Date(today);
+    maxForecast.setDate(maxForecast.getDate() + 16);
+    const forecastEnd = end < maxForecast ? end : maxForecast;
+    const forecastEndStr = forecastEnd.toISOString().split('T')[0];
+    const forecastDays = Math.ceil((forecastEnd - forecastStart) / 86400000) + 1;
+
+    const url2 = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&timezone=auto&forecast_days=${Math.min(forecastDays,16)}`;
+    const r2 = await fetch(url2);
+    if (r2.ok) {
+      const d2 = await r2.json();
+      if (!d2.error && d2.daily) {
+        // Only add dates not already in archive data
+        d2.daily.time.forEach((dt, i) => {
+          if (!dates.includes(dt) && dt >= forecastStartStr && dt <= forecastEndStr) {
+            dates.push(dt);
+            tmax.push(d2.daily.temperature_2m_max[i]||0);
+            tmin.push(d2.daily.temperature_2m_min[i]||0);
+            rain.push(d2.daily.precipitation_sum[i]||0);
+            ETo.push(d2.daily.et0_fao_evapotranspiration[i]||0);
+          }
+        });
+      }
+    }
+
+    // Fill remaining future days beyond 16-day forecast with climatological estimates
+    const lastDate = new Date(dates[dates.length-1]);
+    let fillDate = new Date(lastDate);
+    fillDate.setDate(fillDate.getDate() + 1);
+    while (fillDate <= end) {
+      const ds = fillDate.toISOString().split('T')[0];
+      dates.push(ds);
+      // Use average of last 7 days as estimate
+      const n = Math.min(7, tmax.length);
+      const avgTmax = tmax.slice(-n).reduce((a,b)=>a+b,0)/n;
+      const avgTmin = tmin.slice(-n).reduce((a,b)=>a+b,0)/n;
+      const avgETo  = ETo.slice(-n).reduce((a,b)=>a+b,0)/n;
+      tmax.push(+avgTmax.toFixed(1));
+      tmin.push(+avgTmin.toFixed(1));
+      rain.push(0); // conservative — no rain assumed
+      ETo.push(+avgETo.toFixed(1));
+      fillDate.setDate(fillDate.getDate() + 1);
+    }
+  }
+
+  if (dates.length === 0) throw new Error('No weather data returned. Try different dates or coordinates.');
+  return { dates, tmax, tmin, rain, ETo };
 }
 
 // ═══════════════════════════════════════════
